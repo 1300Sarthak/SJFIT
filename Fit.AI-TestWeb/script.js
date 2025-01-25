@@ -28,9 +28,40 @@ console.log(video.innerHTML + "working?");
     },
     runningMode: runningMode,
     numPoses: 1,
+    minPoseDetectionConfidence: 0.7,
+    minPosePresenceConfidence: 0.7,
+    minTrackingConfidence: 0.7,
+    outputSegmentationMasks: true,
   });
   console.log("PoseLandmarker initialized");
 })();
+let count = 0;
+let countNum = 1;
+const calculate_angle = (a, b, c) => {
+  // Extract points
+  let aTemp = { x: a.x, y: a.y };
+  let bTemp = { x: b.x, y: b.y };
+  let cTemp = { x: c.x, y: c.y };
+
+  // Calculate radians using atan2
+  let radians =
+    Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
+
+  // Convert radians to degrees
+  let angle = Math.abs((radians * 180.0) / Math.PI);
+
+  // Normalize angle to [0, 180]
+  if (angle > 180) {
+    angle = 360 - angle;
+  }
+
+  if (count === 50) {
+    console.log(angle);
+
+    count = 0;
+  }
+  count++;
+};
 
 // Enable Webcam
 if (navigator.mediaDevices?.getUserMedia) {
@@ -58,23 +89,38 @@ if (navigator.mediaDevices?.getUserMedia) {
 let lastVideoTime = -1;
 function renderLoop() {
   let startTimeMs = performance.now(); //performance in milliseconds
-  if (video.currentTime !== lastVideoTime) {
-    const results = poseLandmarker.detectForVideo(video, startTimeMs);
-    canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+  if (webcamRunning) {
+    if (video.currentTime !== lastVideoTime) {
+      const results = poseLandmarker.detectForVideo(video, startTimeMs);
+      canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
 
-    if (results.landmarks) {
-      results.landmarks.forEach((landmark) => {
-        const drawingUtils = new DrawingUtils(canvasCtx);
-        drawingUtils.drawLandmarks(landmark);
-        drawingUtils.drawConnectors(landmark, PoseLandmarker.POSE_CONNECTIONS);
-      });
+      if (results.landmarks) {
+        results.landmarks.forEach((landmark) => {
+          const drawingUtils = new DrawingUtils(canvasCtx);
+          drawingUtils.drawLandmarks(landmark);
+          drawingUtils.drawConnectors(
+            landmark,
+            PoseLandmarker.POSE_CONNECTIONS
+          );
+        });
+      }
+      try {
+        calculate_angle(
+          results.landmarks[0][11], //R- shoulder
+          results.landmarks[0][13], //R - elbow
+          results.landmarks[0][15] // R - wrist
+        );
+      } catch (TypeError) {
+        console.log("Honk Honk hit the klaxon");
+      }
+
+      lastVideoTime = video.currentTime;
     }
-    lastVideoTime = video.currentTime;
-  }
 
-  requestAnimationFrame(() => {
-    renderLoop();
-  });
+    requestAnimationFrame(() => {
+      renderLoop();
+    });
+  }
 }
 
 /*
